@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAST.PASS — AI Influencer Review</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --border: #222;
+    --text: #f0ece4;
+    --muted: #555;
+    --pass: #39e08a;
+    --nah: #ff4560;
+    --pass-glow: rgba(57,224,138,0.25);
+    --nah-glow: rgba(255,69,96,0.25);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 100;
+  }
+
+  /* ── LOADING ── */
+  #loading-screen {
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    animation: fadeUp 0.5s ease both;
+  }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: clamp(2.8rem,7vw,4.5rem); letter-spacing: 0.08em; line-height: 1; }
+  .logo span { color: var(--pass); }
+  .tagline { font-size: 0.8rem; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; margin-top: -14px; }
+  .loader-dots { display: flex; gap: 8px; margin-top: 8px; }
+  .loader-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite; }
+  .loader-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loader-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100% { opacity:0.2; transform:scale(0.8); } 40% { opacity:1; transform:scale(1); } }
+
+  /* ── ERROR ── */
+  #error-screen {
+    display: none; flex-direction: column; align-items: center; gap: 16px;
+    text-align: center; max-width: 400px; padding: 0 20px;
+    animation: fadeUp 0.5s ease both;
+  }
+  #error-screen h2 { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--nah); letter-spacing: 0.1em; }
+  #error-screen p { font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+  #error-screen code { background: #1a1a1a; color: #e0c97f; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
+  .btn-retry { background: transparent; border: 2px solid var(--nah); color: var(--nah); border-radius: 8px; font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 0.1em; padding: 10px 28px; cursor: pointer; transition: background 0.2s; }
+  .btn-retry:hover { background: rgba(255,69,96,0.1); }
+
+  /* ── REVIEW ── */
+  #review-screen { display: none; flex-direction: column; align-items: center; width: 100%; height: 100dvh; }
+
+  .top-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    width: min(860px, 96vw); padding: 16px 0 10px; flex-shrink: 0;
+  }
+  .top-bar .brand { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 0.12em; color: var(--muted); }
+  .progress-wrap { flex: 1; margin: 0 16px; height: 3px; background: #1e1e1e; border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--pass); border-radius: 99px; transition: width 0.3s ease; width: 0%; }
+  .counter { font-size: 0.78rem; color: var(--muted); letter-spacing: 0.05em; white-space: nowrap; }
+
+  /* results pill button in top bar */
+  .btn-results-pill {
+    background: transparent;
+    border: 1.5px solid var(--border);
+    color: var(--muted);
+    border-radius: 99px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    padding: 5px 12px;
+    cursor: pointer;
+    margin-left: 14px;
+    transition: border-color 0.2s, color 0.2s;
+    white-space: nowrap;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-results-pill:hover { border-color: var(--pass); color: var(--pass); }
+  .btn-results-pill .pill-count {
+    background: var(--pass);
+    color: #000;
+    border-radius: 99px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    min-width: 18px;
+    text-align: center;
+  }
+
+  .card-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; width: 100%; }
+
+  .swipe-card {
+    position: absolute; width: min(780px,94vw); height: min(520px,70vh);
+    border-radius: 20px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.7);
+    cursor: grab; touch-action: none; transition: box-shadow 0.2s; will-change: transform; background: #111;
+  }
+  .swipe-card:active { cursor: grabbing; }
+  .swipe-card img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; background: #111; }
+  .card-label { position: absolute; bottom: 0; left: 0; right: 0; padding: 50px 24px 20px; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%); }
+  .card-label .name { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 0.06em; line-height: 1; }
+
+  .stamp { position: absolute; top: 28px; font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; letter-spacing: 0.15em; border: 4px solid; padding: 4px 18px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity 0.05s; }
+  .stamp-pass { right: 20px; color: var(--pass); border-color: var(--pass); transform: rotate(15deg); }
+  .stamp-nah  { left: 20px;  color: var(--nah);  border-color: var(--nah);  transform: rotate(-15deg); }
+
+  .card-behind {
+    position: absolute; width: min(780px,94vw); height: min(520px,70vh);
+    border-radius: 20px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+    transform: scale(0.95) translateY(10px); transition: transform 0.3s ease; pointer-events: none; background: #111;
+  }
+  .card-behind img { width: 100%; height: 100%; object-fit: contain; display: block; background: #111; filter: brightness(0.4); }
+  .card-behind .card-label { display: none; }
+
+  .action-row { display: flex; gap: 28px; align-items: center; justify-content: center; padding: 16px 0 26px; flex-shrink: 0; }
+  .act-btn { width: 62px; height: 62px; border-radius: 50%; border: 2px solid; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.5rem; transition: transform 0.15s, background 0.15s, box-shadow 0.15s; }
+  .act-btn:hover { transform: scale(1.1); }
+  .act-btn:active { transform: scale(0.95); }
+  .btn-nah { border-color: var(--nah); color: var(--nah); }
+  .btn-nah:hover { background: rgba(255,69,96,0.12); box-shadow: 0 0 20px var(--nah-glow); }
+  .btn-pass { border-color: var(--pass); color: var(--pass); width: 72px; height: 72px; font-size: 1.8rem; }
+  .btn-pass:hover { background: rgba(57,224,138,0.12); box-shadow: 0 0 20px var(--pass-glow); }
+  .hint-keys { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 0.68rem; color: #2a2a2a; letter-spacing: 0.1em; white-space: nowrap; }
+
+  /* ── RESULTS DRAWER ── */
+  #results-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(420px, 100vw);
+    background: #0f0f0f;
+    border-left: 1px solid var(--border);
+    z-index: 200;
+    display: flex; flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+  #results-drawer.open { transform: translateX(0); }
+
+  .drawer-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 199; opacity: 0; pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+  .drawer-backdrop.open { opacity: 1; pointer-events: all; }
+
+  .drawer-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 22px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .drawer-header h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 0.1em; }
+  .drawer-close { background: transparent; border: none; color: var(--muted); font-size: 1.4rem; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: color 0.15s; }
+  .drawer-close:hover { color: var(--text); }
+
+  .drawer-tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .drawer-tab {
+    flex: 1; padding: 12px; text-align: center;
+    font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .drawer-tab.active-tab { color: var(--text); border-bottom-color: var(--pass); }
+  .drawer-tab .tab-badge {
+    display: inline-block; border-radius: 99px; font-size: 0.65rem; font-weight: 700;
+    padding: 1px 6px; margin-left: 5px; vertical-align: middle;
+  }
+  .tab-pass-badge { background: rgba(57,224,138,0.15); color: var(--pass); }
+  .tab-nah-badge  { background: rgba(255,69,96,0.15);  color: var(--nah); }
+
+  .drawer-body { flex: 1; overflow-y: auto; padding: 8px 0; }
+  .drawer-body::-webkit-scrollbar { width: 4px; }
+  .drawer-body::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 99px; }
+
+  .drawer-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 22px;
+    border-bottom: 1px solid #161616;
+    animation: slideIn 0.25s ease both;
+  }
+  .drawer-item:last-child { border-bottom: none; }
+  @keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+
+  .drawer-item img {
+    width: 44px; height: 44px; border-radius: 8px; object-fit: cover;
+    background: #1a1a1a; flex-shrink: 0;
+  }
+  .drawer-item .dname { font-size: 0.84rem; color: var(--text); flex: 1; line-height: 1.3; }
+  .drawer-item .dtime { font-size: 0.68rem; color: var(--muted); }
+  .drawer-dec { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; flex-shrink: 0; }
+  .drawer-dec.pass { color: var(--pass); }
+  .drawer-dec.nah  { color: var(--nah); }
+
+  .drawer-empty { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 0.82rem; line-height: 1.8; }
+
+  .drawer-footer {
+    padding: 14px 22px; border-top: 1px solid var(--border); flex-shrink: 0;
+    display: flex; gap: 10px;
+  }
+  .btn-dl-sm {
+    flex: 1; background: transparent; border: 1.5px solid var(--pass); color: var(--pass);
+    border-radius: 8px; font-family: 'Bebas Neue', sans-serif; font-size: 1rem;
+    letter-spacing: 0.1em; padding: 10px; cursor: pointer; transition: background 0.2s;
+  }
+  .btn-dl-sm:hover { background: rgba(57,224,138,0.1); }
+  .btn-clear-sm {
+    background: transparent; border: 1.5px solid var(--border); color: var(--muted);
+    border-radius: 8px; font-family: 'Bebas Neue', sans-serif; font-size: 1rem;
+    letter-spacing: 0.1em; padding: 10px 16px; cursor: pointer; transition: border-color 0.2s, color 0.2s;
+  }
+  .btn-clear-sm:hover { border-color: var(--nah); color: var(--nah); }
+
+  /* ── DONE ── */
+  #done-screen { display: none; flex-direction: column; align-items: center; gap: 22px; width: min(460px,92vw); animation: fadeUp 0.5s ease both; }
+  #done-screen h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(2.5rem,7vw,4rem); letter-spacing: 0.08em; line-height: 1; text-align: center; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+  .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; text-align: center; }
+  .stat-box .val { font-family: 'Bebas Neue', sans-serif; font-size: 3rem; line-height: 1; }
+  .stat-box .lbl { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 4px; }
+  .stat-box.pass-box .val { color: var(--pass); }
+  .stat-box.nah-box .val  { color: var(--nah); }
+  .btn-view-results { width: 100%; background: transparent; border: 2px solid var(--pass); color: var(--pass); border-radius: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 1.15rem; letter-spacing: 0.12em; padding: 14px; cursor: pointer; transition: background 0.2s, box-shadow 0.2s; }
+  .btn-view-results:hover { background: rgba(57,224,138,0.1); box-shadow: 0 0 28px var(--pass-glow); }
+  .btn-dl { width: 100%; background: transparent; border: 2px solid var(--border); color: var(--muted); border-radius: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 1.15rem; letter-spacing: 0.12em; padding: 14px; cursor: pointer; transition: background 0.2s; }
+  .btn-dl:hover { background: #1a1a1a; }
+  .btn-restart { background: transparent; border: none; color: var(--muted); font-size: 0.8rem; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+  @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes flyRight { to { transform: translateX(140vw) rotate(25deg); opacity: 0; } }
+  @keyframes flyLeft  { to { transform: translateX(-140vw) rotate(-25deg); opacity: 0; } }
+  @keyframes popIn { from { transform: scale(0.95) translateY(10px); } to { transform: scale(1) translateY(0); } }
+  .fly-right { animation: flyRight 0.42s cubic-bezier(0.4,0,1,1) forwards; }
+  .fly-left  { animation: flyLeft  0.42s cubic-bezier(0.4,0,1,1) forwards; }
+  .pop-in    { animation: popIn    0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+  .tint-pass { box-shadow: 0 0 60px var(--pass-glow), 0 30px 80px rgba(0,0,0,0.7) !important; }
+  .tint-nah  { box-shadow: 0 0 60px var(--nah-glow),  0 30px 80px rgba(0,0,0,0.7) !important; }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div style="text-align:center">
+    <div class="logo">CAST<span>.</span>PASS</div>
+    <div class="tagline">AI Influencer Review Tool</div>
+  </div>
+  <div class="loader-dots"><span></span><span></span><span></span></div>
+</div>
+
+<!-- ERROR -->
+<div id="error-screen">
+  <h2>COULDN'T LOAD</h2>
+  <p>Make sure <code>influencers.json</code> is in the same folder, then reload.<br><br>
+  Run <code>npx serve .</code> and open the localhost URL.</p>
+  <button class="btn-retry" onclick="location.reload()">↺ RETRY</button>
+</div>
+
+<!-- REVIEW -->
+<div id="review-screen">
+  <div class="top-bar">
+    <span class="brand">CAST.PASS</span>
+    <div class="progress-wrap">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <span class="counter" id="counter">0 / 0</span>
+    <button class="btn-results-pill" onclick="openDrawer()">
+      RESULTS <span class="pill-count" id="pill-count">0</span>
+    </button>
+  </div>
+  <div class="card-stage" id="card-stage"></div>
+  <div class="action-row">
+    <button class="act-btn btn-nah" onclick="vote('nah')" title="Nah (←)">✕</button>
+    <button class="act-btn btn-pass" onclick="vote('pass')" title="Pass (→)">✓</button>
+  </div>
+  <div class="hint-keys">← NAH &nbsp;·&nbsp; PASS →</div>
+</div>
+
+<!-- RESULTS DRAWER -->
+<div class="drawer-backdrop" id="drawer-backdrop" onclick="closeDrawer()"></div>
+<div id="results-drawer">
+  <div class="drawer-header">
+    <h2>RESULTS</h2>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-tabs">
+    <div class="drawer-tab active-tab" id="tab-all" onclick="switchTab('all')">
+      ALL <span class="tab-badge" id="badge-all" style="background:#222;color:var(--muted)">0</span>
+    </div>
+    <div class="drawer-tab" id="tab-pass" onclick="switchTab('pass')">
+      PASS <span class="tab-badge tab-pass-badge" id="badge-pass">0</span>
+    </div>
+    <div class="drawer-tab" id="tab-nah" onclick="switchTab('nah')">
+      NAH <span class="tab-badge tab-nah-badge" id="badge-nah">0</span>
+    </div>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+  <div class="drawer-footer">
+    <button class="btn-dl-sm" onclick="downloadCSV()">⬇ EXPORT CSV</button>
+    <button class="btn-clear-sm" onclick="clearResults()">CLEAR</button>
+  </div>
+</div>
+
+<!-- DONE -->
+<div id="done-screen">
+  <h1>REVIEW<br>COMPLETE</h1>
+  <div class="stats-grid">
+    <div class="stat-box pass-box"><div class="val" id="stat-pass">0</div><div class="lbl">Passed</div></div>
+    <div class="stat-box nah-box"><div class="val" id="stat-nah">0</div><div class="lbl">Passed On</div></div>
+  </div>
+  <button class="btn-view-results" onclick="openDrawer()">VIEW FULL RESULTS →</button>
+  <button class="btn-dl" onclick="downloadCSV()">⬇ DOWNLOAD CSV</button>
+  <button class="btn-restart" onclick="restart()">Start over</button>
+</div>
+
+<script>
+const STORAGE_KEY = 'castpass_results';
+let influencers = [], current = 0, results = [];
+let isDragging = false, startX = 0, startY = 0, currentX = 0;
+let activeCard = null;
+let activeTab = 'all';
+
+function $(id) { return document.getElementById(id); }
+function show(id) { $(id).style.display = 'flex'; }
+function hide(id) { $(id).style.display = 'none'; }
+
+// ── STORAGE ───────────────────────────────────────────
+function saveResults() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(results));
+}
+function loadResults() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
+}
+
+// ── BOOT ──────────────────────────────────────────────
+async function boot() {
+  // restore any saved results from previous sessions
+  results = loadResults();
+  updatePillCount();
+  updateDrawerBadges();
+
+  try {
+    const res = await fetch('./influencers.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) throw new Error('Empty');
+    influencers = data.map((x, i) => ({
+      name: x.name || `Influencer ${i + 1}`,
+      imageUrl: x.imageUrl || ''
+    }));
+
+    // figure out where we left off — skip already-reviewed influencers
+    const reviewed = new Set(results.map(r => r.name));
+    // find first unreviewed
+    current = influencers.findIndex(inf => !reviewed.has(inf.name));
+    if (current === -1) current = influencers.length; // all done
+
+    hide('loading-screen');
+    if (current >= influencers.length) {
+      showDone();
+    } else {
+      show('review-screen');
+      renderCards();
+      updateProgress();
+    }
+  } catch (e) {
+    console.error('Failed to load influencers.json:', e);
+    hide('loading-screen');
+    show('error-screen');
+  }
+}
+
+// ── CARDS ─────────────────────────────────────────────
+function renderCards() {
+  const stage = $('card-stage');
+  stage.innerHTML = '';
+  if (current + 1 < influencers.length) stage.appendChild(createCardEl(current + 1, true));
+  if (current < influencers.length) {
+    const card = createCardEl(current, false);
+    card.id = 'active-card';
+    stage.appendChild(card);
+    attachDrag(card);
+    activeCard = card;
+  }
+}
+
+function proxyUrl(url) {
+  return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=1200&output=jpg`;
+}
+
+function createCardEl(idx, isBehind) {
+  const inf = influencers[idx];
+  const wrap = document.createElement('div');
+  wrap.className = isBehind ? 'card-behind' : 'swipe-card';
+  const img = document.createElement('img');
+  img.src = proxyUrl(inf.imageUrl);
+  img.alt = inf.name;
+  img.loading = 'lazy';
+  const label = document.createElement('div');
+  label.className = 'card-label';
+  label.innerHTML = `<div class="name">${inf.name}</div>`;
+  if (!isBehind) {
+    const sPass = document.createElement('div'); sPass.className = 'stamp stamp-pass'; sPass.textContent = 'PASS';
+    const sNah  = document.createElement('div'); sNah.className  = 'stamp stamp-nah';  sNah.textContent  = 'NAH';
+    wrap.appendChild(sPass); wrap.appendChild(sNah);
+  }
+  wrap.appendChild(img); wrap.appendChild(label);
+  return wrap;
+}
+
+// ── DRAG ──────────────────────────────────────────────
+function attachDrag(card) {
+  card.addEventListener('mousedown', dragStart);
+  card.addEventListener('touchstart', dragStart, { passive: true });
+  window.addEventListener('mousemove', dragMove);
+  window.addEventListener('touchmove', dragMove, { passive: false });
+  window.addEventListener('mouseup', dragEnd);
+  window.addEventListener('touchend', dragEnd);
+}
+function detachDrag() {
+  window.removeEventListener('mousemove', dragMove);
+  window.removeEventListener('touchmove', dragMove);
+  window.removeEventListener('mouseup', dragEnd);
+  window.removeEventListener('touchend', dragEnd);
+}
+function getX(e) { return e.touches ? e.touches[0].clientX : e.clientX; }
+function getY(e) { return e.touches ? e.touches[0].clientY : e.clientY; }
+function dragStart(e) { isDragging = true; startX = getX(e); startY = getY(e); currentX = 0; activeCard.style.transition = 'none'; }
+function dragMove(e) {
+  if (!isDragging) return;
+  if (e.cancelable) e.preventDefault();
+  currentX = getX(e) - startX;
+  const dy = getY(e) - startY;
+  activeCard.style.transform = `translate(${currentX}px, ${dy * 0.3}px) rotate(${currentX * 0.08}deg)`;
+  const ratio = Math.min(Math.abs(currentX) / 120, 1);
+  const sp = activeCard.querySelector('.stamp-pass'), sn = activeCard.querySelector('.stamp-nah');
+  if (currentX > 60) { activeCard.classList.add('tint-pass'); activeCard.classList.remove('tint-nah'); sp.style.opacity = ratio; sn.style.opacity = 0; }
+  else if (currentX < -60) { activeCard.classList.add('tint-nah'); activeCard.classList.remove('tint-pass'); sn.style.opacity = ratio; sp.style.opacity = 0; }
+  else { activeCard.classList.remove('tint-pass','tint-nah'); sp.style.opacity = 0; sn.style.opacity = 0; }
+}
+function dragEnd() {
+  if (!isDragging) return;
+  isDragging = false; detachDrag();
+  if (currentX > 90) commitVote('pass');
+  else if (currentX < -90) commitVote('nah');
+  else {
+    activeCard.style.transition = 'transform 0.4s cubic-bezier(0.34,1.56,0.64,1)';
+    activeCard.style.transform = 'translate(0,0) rotate(0deg)';
+    activeCard.querySelector('.stamp-pass').style.opacity = 0;
+    activeCard.querySelector('.stamp-nah').style.opacity = 0;
+    activeCard.classList.remove('tint-pass','tint-nah');
+  }
+}
+
+// ── VOTE ──────────────────────────────────────────────
+function vote(decision) {
+  if (!activeCard || activeCard.classList.contains('fly-right') || activeCard.classList.contains('fly-left')) return;
+  activeCard.querySelector(decision === 'pass' ? '.stamp-pass' : '.stamp-nah').style.opacity = 1;
+  commitVote(decision);
+}
+
+function commitVote(decision) {
+  detachDrag();
+  const inf = influencers[current];
+
+  // save immediately
+  const entry = {
+    name: inf.name,
+    imageUrl: inf.imageUrl,
+    decision,
+    timestamp: new Date().toISOString()
+  };
+  results.push(entry);
+  saveResults();           // ← persists to localStorage instantly
+  updatePillCount();
+  updateDrawerBadges();
+  // if drawer is open, prepend new item live
+  if ($('results-drawer').classList.contains('open')) {
+    prependDrawerItem(entry);
+  }
+
+  activeCard.style.transition = '';
+  activeCard.classList.add(decision === 'pass' ? 'fly-right' : 'fly-left');
+  const behind = $('card-stage').querySelector('.card-behind');
+  if (behind) behind.classList.add('pop-in');
+  activeCard.addEventListener('animationend', () => {
+    current++;
+    if (current >= influencers.length) { setTimeout(showDone, 200); }
+    else { renderCards(); updateProgress(); }
+  }, { once: true });
+}
+
+function updateProgress() {
+  const total = influencers.length;
+  const reviewed = results.length;
+  $('progress-fill').style.width = (reviewed / total * 100) + '%';
+  $('counter').textContent = `${reviewed} / ${total}`;
+}
+
+function updatePillCount() {
+  $('pill-count').textContent = results.length;
+}
+
+document.addEventListener('keydown', e => {
+  if ($('review-screen').style.display === 'none') return;
+  if (e.key === 'ArrowRight') vote('pass');
+  if (e.key === 'ArrowLeft')  vote('nah');
+  if (e.key === 'r' || e.key === 'R') toggleDrawer();
+});
+
+// ── DRAWER ────────────────────────────────────────────
+function openDrawer() {
+  $('results-drawer').classList.add('open');
+  $('drawer-backdrop').classList.add('open');
+  renderDrawer();
+}
+function closeDrawer() {
+  $('results-drawer').classList.remove('open');
+  $('drawer-backdrop').classList.remove('open');
+}
+function toggleDrawer() {
+  $('results-drawer').classList.contains('open') ? closeDrawer() : openDrawer();
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  ['all','pass','nah'].forEach(t => {
+    $(`tab-${t}`).classList.toggle('active-tab', t === tab);
+  });
+  renderDrawer();
+}
+
+function updateDrawerBadges() {
+  const passed = results.filter(r => r.decision === 'pass').length;
+  const nahed  = results.filter(r => r.decision === 'nah').length;
+  $('badge-all').textContent  = results.length;
+  $('badge-pass').textContent = passed;
+  $('badge-nah').textContent  = nahed;
+}
+
+function renderDrawer() {
+  const body = $('drawer-body');
+  const filtered = activeTab === 'all' ? results : results.filter(r => r.decision === activeTab);
+  // show newest first
+  const sorted = [...filtered].reverse();
+
+  if (sorted.length === 0) {
+    body.innerHTML = `<div class="drawer-empty">No ${activeTab === 'all' ? '' : activeTab + ' '}results yet.<br>Start swiping to see them appear here.</div>`;
+    return;
+  }
+
+  body.innerHTML = '';
+  sorted.forEach(r => body.appendChild(buildDrawerItem(r)));
+}
+
+function buildDrawerItem(r) {
+  const div = document.createElement('div');
+  div.className = 'drawer-item';
+  const time = new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  div.innerHTML = `
+    <img src="${proxyUrl(r.imageUrl)}&w=100" alt="${r.name}" loading="lazy">
+    <div style="flex:1;min-width:0">
+      <div class="dname">${r.name}</div>
+      <div class="dtime">${time}</div>
+    </div>
+    <span class="drawer-dec ${r.decision}">${r.decision === 'pass' ? '✓ PASS' : '✕ NAH'}</span>
+  `;
+  return div;
+}
+
+function prependDrawerItem(r) {
+  // only prepend if current tab matches
+  if (activeTab !== 'all' && activeTab !== r.decision) return;
+  const body = $('drawer-body');
+  // remove empty state if present
+  const empty = body.querySelector('.drawer-empty');
+  if (empty) empty.remove();
+  const item = buildDrawerItem(r);
+  body.prepend(item);
+}
+
+// ── DONE ─────────────────────────────────────────────
+function showDone() {
+  hide('review-screen'); show('done-screen');
+  const passed = results.filter(r => r.decision === 'pass').length;
+  $('stat-pass').textContent = passed;
+  $('stat-nah').textContent  = results.length - passed;
+}
+
+function downloadCSV() {
+  const csv = 'Name,Decision,Timestamp\n' +
+    results.map(r => `"${r.name}","${r.decision}","${r.timestamp}"`).join('\n');
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
+    download: 'influencer-review.csv'
+  });
+  a.click();
+}
+
+function clearResults() {
+  if (!confirm('Clear all saved results? This cannot be undone.')) return;
+  results = [];
+  saveResults();
+  updatePillCount();
+  updateDrawerBadges();
+  renderDrawer();
+}
+
+function restart() {
+  current = 0; results = []; saveResults();
+  hide('done-screen'); show('loading-screen');
+  boot();
+}
+
+boot();
+</script>
+</body>
+</html>
