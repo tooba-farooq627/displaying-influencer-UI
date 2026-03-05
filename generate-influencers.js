@@ -1,3 +1,98 @@
+// const axios = require('axios');
+// const fs    = require('fs');
+
+// // ── CONFIG ───────────────────────────────────────────
+// const API_KEY        = 'AIzaSyAnbVNA-l5M9aFTeILNQmkAu34tH44d_xM';
+// const ROOT_FOLDER_ID = '1FEiWv5wM1ax-tH6pbaiG1eAGbOO5v5eU';
+// const LOOKBOOK_NAME  = 'lookbook';   // exact folder name (case-insensitive)
+// const HEADSHOT_NAME  = 'headshots';   // file must START with this (case-insensitive)
+// // ─────────────────────────────────────────────────────
+
+// const BASE = 'https://www.googleapis.com/drive/v3';
+
+// async function listFiles(folderId) {
+//   const res = await axios.get(`${BASE}/files`, {
+//     params: {
+//       q: `'${folderId}' in parents and trashed = false`,
+//       fields: 'files(id, name, mimeType)',
+//       key: API_KEY,
+//       pageSize: 1000,
+//     }
+//   });
+//   return res.data.files || [];
+// }
+
+// async function run() {
+//   console.log('🔍 Scanning profilev2 folder...\n');
+
+//   // Step 1: list all influencer folders inside profilev2
+//   const items = await listFiles(ROOT_FOLDER_ID);
+//   const influencerFolders = items.filter(
+//     f => f.mimeType === 'application/vnd.google-apps.folder'
+//   );
+//   console.log(`Found ${influencerFolders.length} influencer folder(s).\n`);
+
+//   const influencers = [];
+
+//   for (const influencer of influencerFolders) {
+//     console.log(`Processing: ${influencer.name}`);
+
+//     // Step 2: find the "lookbook" folder inside each influencer folder
+//     const children = await listFiles(influencer.id);
+//     const lookbook = children.find(
+//       f =>
+//         f.mimeType === 'application/vnd.google-apps.folder' &&
+//         f.name.toLowerCase() === LOOKBOOK_NAME.toLowerCase()
+//     );
+
+//     if (!lookbook) {
+//       console.warn(`  ⚠ No "${LOOKBOOK_NAME}" folder found — skipping`);
+//       continue;
+//     }
+
+//     // Step 3: find headshot.* inside the lookbook folder
+//     const lookbookFiles = await listFiles(lookbook.id);
+//     const headshot = lookbookFiles.find(
+//       f =>
+//         f.name.toLowerCase().startsWith(HEADSHOT_NAME.toLowerCase()) &&
+//         f.mimeType.startsWith('image/')
+//     );
+
+//     if (!headshot) {
+//       console.warn(`  ⚠ No headshot image found in lookbook — skipping`);
+//       continue;
+//     }
+
+//     const imageUrl = `https://drive.google.com/uc?export=view&id=${headshot.id}`;
+//     influencers.push({ name: influencer.name, imageUrl });
+//     console.log(`  ✓ Found headshot: ${headshot.name}`);
+//   }
+
+//   fs.writeFileSync('influencers.json', JSON.stringify(influencers, null, 2));
+
+//   console.log(`\n✅ Done! influencers.json written with ${influencers.length} entries.`);
+//   console.log('   Paste its contents into the CAST.PASS web app to start reviewing.\n');
+// }
+
+// run().catch(err => {
+//   console.error('\n❌ Error:', err.response?.data?.error?.message || err.message);
+//   process.exit(1);
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const axios = require('axios');
 const fs    = require('fs');
 
@@ -5,7 +100,6 @@ const fs    = require('fs');
 const API_KEY        = 'AIzaSyAnbVNA-l5M9aFTeILNQmkAu34tH44d_xM';
 const ROOT_FOLDER_ID = '1FEiWv5wM1ax-tH6pbaiG1eAGbOO5v5eU';
 const LOOKBOOK_NAME  = 'lookbook';   // exact folder name (case-insensitive)
-const HEADSHOT_NAME  = 'headshots';   // file must START with this (case-insensitive)
 // ─────────────────────────────────────────────────────
 
 const BASE = 'https://www.googleapis.com/drive/v3';
@@ -22,10 +116,22 @@ async function listFiles(folderId) {
   return res.data.files || [];
 }
 
-async function run() {
-  console.log('🔍 Scanning profilev2 folder...\n');
+// Sort images: headshots first, then photo1, photo2, poses, etc. alphabetically
+function sortImages(files) {
+  return files.sort((a, b) => {
+    const aName = a.name.toLowerCase();
+    const bName = b.name.toLowerCase();
+    // headshots always first
+    if (aName.startsWith('headshot') && !bName.startsWith('headshot')) return -1;
+    if (!aName.startsWith('headshot') && bName.startsWith('headshot')) return 1;
+    return aName.localeCompare(bName);
+  });
+}
 
-  // Step 1: list all influencer folders inside profilev2
+async function run() {
+  console.log('🔍 Scanning root folder...\n');
+
+  // Step 1: list all influencer folders
   const items = await listFiles(ROOT_FOLDER_ID);
   const influencerFolders = items.filter(
     f => f.mimeType === 'application/vnd.google-apps.folder'
@@ -50,28 +156,33 @@ async function run() {
       continue;
     }
 
-    // Step 3: find headshot.* inside the lookbook folder
+    // Step 3: get ALL images inside the lookbook folder
     const lookbookFiles = await listFiles(lookbook.id);
-    const headshot = lookbookFiles.find(
-      f =>
-        f.name.toLowerCase().startsWith(HEADSHOT_NAME.toLowerCase()) &&
-        f.mimeType.startsWith('image/')
-    );
+    const images = lookbookFiles.filter(f => f.mimeType.startsWith('image/'));
 
-    if (!headshot) {
-      console.warn(`  ⚠ No headshot image found in lookbook — skipping`);
+    if (images.length === 0) {
+      console.warn(`  ⚠ No images found in lookbook — skipping`);
       continue;
     }
 
-    const imageUrl = `https://drive.google.com/uc?export=view&id=${headshot.id}`;
-    influencers.push({ name: influencer.name, imageUrl });
-    console.log(`  ✓ Found headshot: ${headshot.name}`);
+    // Sort: headshots first, then alphabetically
+    const sorted = sortImages(images);
+
+    const imageUrls = sorted.map(f => `https://drive.google.com/uc?export=view&id=${f.id}`);
+
+    influencers.push({
+      name: influencer.name,
+      imageUrl: imageUrls[0],      // primary (headshot) — kept for backwards compat
+      images: imageUrls,           // ALL images in the lookbook
+    });
+
+    console.log(`  ✓ Found ${images.length} image(s): ${sorted.map(f => f.name).join(', ')}`);
   }
 
   fs.writeFileSync('influencers.json', JSON.stringify(influencers, null, 2));
 
   console.log(`\n✅ Done! influencers.json written with ${influencers.length} entries.`);
-  console.log('   Paste its contents into the CAST.PASS web app to start reviewing.\n');
+  console.log('   Each entry now includes all lookbook images in the "images" array.\n');
 }
 
 run().catch(err => {

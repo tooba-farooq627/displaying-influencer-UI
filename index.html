@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -300,6 +300,511 @@ function downloadCSV() {
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
+  a.setAttribute('hidden', ''); a.setAttribute('href', url); a.setAttribute('download', 'results.csv');
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+boot();
+</script>
+</body>
+</html> -->
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAST.PASS — AI Influencer Review</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --border: #222;
+    --text: #f0ece4;
+    --muted: #555;
+    --pass: #39e08a;
+    --nah: #ff4560;
+    --undo: #ff9800;
+    --pass-glow: rgba(57,224,138,0.4);
+    --nah-glow: rgba(255,69,96,0.4);
+    --undo-glow: rgba(255,152,0,0.4);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 100;
+  }
+
+  /* ── LOADING ── */
+  #loading-screen { display: flex; flex-direction: column; align-items: center; gap: 20px; animation: fadeUp 0.5s ease both; }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: clamp(2.8rem,7vw,4.5rem); letter-spacing: 0.08em; line-height: 1; }
+  .logo span { color: var(--pass); }
+  .tagline { font-size: 0.8rem; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; margin-top: -14px; }
+  .loader-dots { display: flex; gap: 8px; margin-top: 8px; }
+  .loader-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite; }
+  .loader-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loader-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100% { opacity:0.2; transform:scale(0.8); } 40% { opacity:1; transform:scale(1); } }
+
+  /* ── REVIEW ── */
+  #review-screen { display: none; flex-direction: column; align-items: center; width: 100%; height: 100dvh; }
+  .top-bar { display: flex; align-items: center; justify-content: space-between; width: min(900px, 96vw); padding: 16px 0 10px; flex-shrink: 0; }
+  .top-bar .brand { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 0.12em; color: var(--muted); }
+
+  .btn-restart-top {
+    background: var(--pass); border: none; color: #000;
+    border-radius: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 1rem;
+    padding: 10px 22px; cursor: pointer; margin-left: 15px;
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    font-weight: bold; box-shadow: 0 4px 15px rgba(57, 224, 138, 0.3);
+  }
+  .btn-restart-top:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 6px 20px var(--pass-glow); filter: brightness(1.1); }
+
+  .btn-results-pill {
+    background: var(--pass); border: none; color: #000;
+    border-radius: 99px; font-family: 'Bebas Neue', sans-serif; font-size: 1rem;
+    padding: 10px 22px; cursor: pointer; margin-left: 15px;
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex; align-items: center; gap: 10px; font-weight: bold;
+    box-shadow: 0 4px 15px rgba(57, 224, 138, 0.3);
+  }
+  .btn-results-pill:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 6px 20px var(--pass-glow); filter: brightness(1.1); }
+  .btn-results-pill .pill-count { background: #000; color: var(--pass); border-radius: 99px; font-size: 0.8rem; padding: 2px 10px; min-width: 28px; }
+
+  .progress-wrap { flex: 1; margin: 0 25px; height: 6px; background: #1e1e1e; border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--pass); border-radius: 99px; transition: width 0.3s ease; width: 0%; }
+  .counter { font-size: 0.95rem; color: var(--text); font-weight: 600; white-space: nowrap; }
+
+  /* ── CARD STAGE ── */
+  .card-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; width: 100%; }
+
+  .swipe-card {
+    position: absolute; width: min(780px,94vw); height: min(520px,70vh);
+    border-radius: 24px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.8);
+    background: #111; will-change: transform;
+  }
+
+  /* Image inside card — slides horizontally */
+  .card-img-track {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .card-img-slide {
+    flex: 0 0 100%;
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+  .card-img-slide img {
+    width: 100%; height: 100%; object-fit: contain; pointer-events: none; display: block;
+  }
+
+  .card-label {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 60px 30px 25px;
+    background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, transparent 100%);
+    display: flex; align-items: flex-end; justify-content: space-between;
+    pointer-events: none;
+  }
+  .card-label .name { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 0.08em; }
+
+  /* Image counter dots */
+  .img-dots {
+    display: flex; gap: 6px; align-items: center;
+    pointer-events: none;
+  }
+  .img-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+  .img-dot.active { background: white; transform: scale(1.3); }
+
+  /* Image counter label (e.g. "2 / 4") */
+  .img-counter-label {
+    position: absolute; top: 18px; right: 22px;
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+    border-radius: 99px; padding: 5px 14px;
+    font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em;
+    color: rgba(255,255,255,0.8);
+    pointer-events: none;
+  }
+
+  /* Left / Right nav arrows on the card */
+  .card-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: white; font-size: 1.1rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s ease; z-index: 10;
+  }
+  .card-nav:hover { background: rgba(255,255,255,0.15); }
+  .card-nav.card-nav-left  { left: 16px; }
+  .card-nav.card-nav-right { right: 16px; }
+  .card-nav.hidden { opacity: 0; pointer-events: none; }
+
+  .stamp { position: absolute; top: 32px; font-family: 'Bebas Neue', sans-serif; font-size: 3rem; border: 5px solid; padding: 6px 22px; border-radius: 8px; opacity: 0; pointer-events: none; z-index: 20; }
+  .stamp-pass { right: 25px; color: var(--pass); border-color: var(--pass); transform: rotate(15deg); }
+  .stamp-nah  { left: 25px;  color: var(--nah);  border-color: var(--nah);  transform: rotate(-15deg); }
+
+  /* Behind card */
+  .card-behind {
+    position: absolute; width: min(780px,94vw); height: min(520px,70vh);
+    border-radius: 24px; overflow: hidden; transform: scale(0.95) translateY(12px);
+    background: #111; transition: transform 0.3s ease;
+  }
+  .card-behind img { width: 100%; height: 100%; object-fit: contain; filter: brightness(0.3); }
+
+  /* ── ACTION BUTTONS ── */
+  .action-row { display: flex; gap: 40px; align-items: center; justify-content: center; padding: 20px 0 40px; }
+  .act-btn { border-radius: 50%; border: 3px solid; background: transparent; cursor: pointer; transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; align-items: center; justify-content: center; }
+  .act-btn:hover { transform: scale(1.18); }
+  .btn-nah  { width: 80px; height: 80px; border-color: var(--nah);  color: var(--nah);  font-size: 1.8rem; }
+  .btn-nah:hover  { background: rgba(255,69,96,0.1);   box-shadow: 0 0 30px var(--nah-glow); }
+  .btn-pass { width: 100px; height: 100px; border-color: var(--pass); color: var(--pass); font-size: 2.5rem; }
+  .btn-pass:hover { background: rgba(57,224,138,0.1);  box-shadow: 0 0 40px var(--pass-glow); }
+  .btn-prev { width: 80px; height: 80px; border-color: var(--undo); color: var(--undo); font-size: 2rem; }
+  .btn-prev:hover { background: rgba(255,152,0,0.1); box-shadow: 0 0 30px var(--undo-glow); transform: scale(1.18) rotate(-15deg); }
+  .btn-prev.disabled { opacity: 0.1; cursor: default; pointer-events: none; }
+
+  /* ── FLY ANIMATIONS ── */
+  @keyframes flyRight { to { transform: translateX(150vw) rotate(30deg); opacity: 0; } }
+  @keyframes flyLeft  { to { transform: translateX(-150vw) rotate(-30deg); opacity: 0; } }
+  .fly-right { animation: flyRight 0.5s ease-in forwards !important; }
+  .fly-left  { animation: flyLeft  0.5s ease-in forwards !important; }
+  .pop-in { animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+  @keyframes popIn { from { transform: scale(0.95) translateY(12px); } to { transform: scale(1) translateY(0); } }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+
+  /* ── DRAWER ── */
+  #results-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); background: #0f0f0f; border-left: 1px solid var(--border); z-index: 200; transform: translateX(100%); transition: transform 0.3s ease; display: flex; flex-direction: column; }
+  #results-drawer.open { transform: translateX(0); }
+  .drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  .drawer-backdrop.open { opacity: 1; pointer-events: all; }
+  .drawer-header { padding: 22px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  .drawer-header h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; }
+  .drawer-body { flex: 1; overflow-y: auto; }
+  .drawer-item { display: flex; align-items: center; gap: 15px; padding: 15px 22px; border-bottom: 1px solid #161616; }
+  .drawer-item img { width: 50px; height: 50px; border-radius: 10px; object-fit: cover; }
+  .drawer-dec.pass { color: var(--pass); }
+  .drawer-dec.nah  { color: var(--nah);  }
+</style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div style="text-align:center">
+    <div class="logo">CAST<span>.</span>PASS</div>
+    <div class="tagline">AI Influencer Review Tool</div>
+  </div>
+  <div class="loader-dots"><span></span><span></span><span></span></div>
+</div>
+
+<div id="review-screen">
+  <div class="top-bar">
+    <span class="brand">CAST.PASS</span>
+    <button class="btn-restart-top" onclick="restart()">Reset Session</button>
+    <div class="progress-wrap"><div class="progress-fill" id="progress-fill"></div></div>
+    <span class="counter" id="counter">0 / 0</span>
+    <button class="btn-results-pill" onclick="openDrawer()">
+      RESULTS <span class="pill-count" id="pill-count">0</span>
+    </button>
+  </div>
+  <div class="card-stage" id="card-stage"></div>
+  <div class="action-row">
+    <button class="act-btn btn-nah" onclick="vote('nah')">✕</button>
+    <button class="act-btn btn-prev" id="btn-prev" onclick="undo()">↺</button>
+    <button class="act-btn btn-pass" onclick="vote('pass')">✓</button>
+  </div>
+</div>
+
+<div class="drawer-backdrop" id="drawer-backdrop" onclick="closeDrawer()"></div>
+<div id="results-drawer">
+  <div class="drawer-header">
+    <h2>HISTORY</h2>
+    <button onclick="closeDrawer()" style="background:none; border:none; color:#888; cursor:pointer; font-size:1.5rem;">✕</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+  <div style="padding:20px; border-top:1px solid #222;">
+    <button onclick="downloadCSV()" style="width:100%; background:var(--pass); border:none; padding:12px; font-family:'Bebas Neue'; font-size:1.2rem; cursor:pointer; border-radius:8px;">EXPORT CSV</button>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'castpass_results';
+let influencers = [], current = 0, results = [];
+let activeCard = null;
+let currentImgIdx = 0;   // which image within the current influencer's lookbook
+
+function $(id) { return document.getElementById(id); }
+function show(id) { $(id).style.display = 'flex'; }
+function hide(id) { $(id).style.display = 'none'; }
+
+// ── BOOT ─────────────────────────────────────────────
+async function boot() {
+  results = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  updatePillCount();
+  try {
+    const res  = await fetch('./influencers.json');
+    const data = await res.json();
+    influencers = data.map((x, i) => ({
+      name: x.name || `Influencer ${i + 1}`,
+      imageUrl: x.imageUrl,
+      // Support both old single-image format and new multi-image format
+      images: x.images && x.images.length ? x.images : [x.imageUrl],
+    }));
+    current = results.length;
+    hide('loading-screen');
+    if (current >= influencers.length) {
+      alert("Batch complete! Use Reset to start over.");
+      show('review-screen');
+    } else {
+      show('review-screen');
+      currentImgIdx = 0;
+      renderCards();
+      updateProgress();
+    }
+  } catch (e) {
+    alert("Error loading influencers.json: " + e.message);
+  }
+}
+
+// ── RENDER ────────────────────────────────────────────
+function renderCards() {
+  const stage = $('card-stage');
+  stage.innerHTML = '';
+  $('btn-prev').classList.toggle('disabled', results.length === 0);
+
+  if (current >= influencers.length) return;
+
+  // Behind card (next influencer's first image)
+  if (current + 1 < influencers.length) {
+    stage.appendChild(createBehindCard(current + 1));
+  }
+
+  // Active card
+  activeCard = createActiveCard(current, currentImgIdx);
+  activeCard.id = 'active-card';
+  stage.appendChild(activeCard);
+
+  // Keyboard support
+  document.onkeydown = handleKey;
+}
+
+function createBehindCard(idx) {
+  const inf  = influencers[idx];
+  const wrap = document.createElement('div');
+  wrap.className = 'card-behind';
+  wrap.innerHTML = `<img src="https://wsrv.nl/?url=${encodeURIComponent(inf.images[0])}&w=1200" loading="lazy">`;
+  return wrap;
+}
+
+function createActiveCard(idx, imgIdx) {
+  const inf    = influencers[idx];
+  const images = inf.images;
+  const total  = images.length;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'swipe-card';
+
+  // Build image track (all images side by side)
+  const trackHTML = images.map((url, i) => `
+    <div class="card-img-slide">
+      <img src="https://wsrv.nl/?url=${encodeURIComponent(url)}&w=1200" loading="${i === 0 ? 'eager' : 'lazy'}">
+    </div>
+  `).join('');
+
+  // Dots
+  const dotsHTML = total > 1
+    ? `<div class="img-dots">${images.map((_, i) =>
+        `<div class="img-dot ${i === imgIdx ? 'active' : ''}"></div>`
+      ).join('')}</div>`
+    : '';
+
+  wrap.innerHTML = `
+    <div class="card-img-track" id="img-track" style="transform: translateX(-${imgIdx * 100}%)">
+      ${trackHTML}
+    </div>
+    <div class="card-label">
+      <div class="name">${inf.name}</div>
+      ${dotsHTML}
+    </div>
+    ${total > 1 ? `<div class="img-counter-label" id="img-counter">${imgIdx + 1} / ${total}</div>` : ''}
+    ${total > 1 && imgIdx > 0 ? `<button class="card-nav card-nav-left" onclick="prevImg(event)">‹</button>` : `<button class="card-nav card-nav-left hidden" onclick="prevImg(event)">‹</button>`}
+    ${total > 1 && imgIdx < total - 1 ? `<button class="card-nav card-nav-right" onclick="nextImg(event)">›</button>` : `<button class="card-nav card-nav-right hidden" onclick="nextImg(event)">›</button>`}
+    <div class="stamp stamp-pass">PASS</div>
+    <div class="stamp stamp-nah">NAH</div>
+  `;
+
+  return wrap;
+}
+
+// ── IMAGE NAVIGATION ──────────────────────────────────
+function nextImg(e) {
+  if (e) e.stopPropagation();
+  const inf   = influencers[current];
+  const total = inf.images.length;
+  if (currentImgIdx >= total - 1) return;
+  currentImgIdx++;
+  updateImgView();
+}
+
+function prevImg(e) {
+  if (e) e.stopPropagation();
+  if (currentImgIdx <= 0) return;
+  currentImgIdx--;
+  updateImgView();
+}
+
+function updateImgView() {
+  if (!activeCard) return;
+  const inf   = influencers[current];
+  const total = inf.images.length;
+
+  // Slide track
+  const track = activeCard.querySelector('#img-track');
+  if (track) track.style.transform = `translateX(-${currentImgIdx * 100}%)`;
+
+  // Counter label
+  const counter = activeCard.querySelector('#img-counter');
+  if (counter) counter.textContent = `${currentImgIdx + 1} / ${total}`;
+
+  // Dots
+  activeCard.querySelectorAll('.img-dot').forEach((d, i) => {
+    d.classList.toggle('active', i === currentImgIdx);
+  });
+
+  // Nav arrows
+  const leftNav  = activeCard.querySelector('.card-nav-left');
+  const rightNav = activeCard.querySelector('.card-nav-right');
+  if (leftNav)  leftNav.classList.toggle('hidden',  currentImgIdx <= 0);
+  if (rightNav) rightNav.classList.toggle('hidden', currentImgIdx >= total - 1);
+}
+
+// ── KEYBOARD ──────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'ArrowRight') nextImg(null);
+  if (e.key === 'ArrowLeft')  prevImg(null);
+  if (e.key === 'Enter' || e.key === ' ') vote('pass');
+  if (e.key === 'Backspace')  vote('nah');
+}
+
+// ── VOTE ──────────────────────────────────────────────
+function vote(decision) {
+  if (!activeCard || activeCard.classList.contains('fly-right') || activeCard.classList.contains('fly-left')) return;
+
+  // Show stamp
+  activeCard.querySelector(decision === 'pass' ? '.stamp-pass' : '.stamp-nah').style.opacity = 1;
+
+  // Save result
+  const entry = {
+    name: influencers[current].name,
+    imageUrl: influencers[current].images[0],
+    decision,
+    timestamp: new Date().toISOString(),
+  };
+  results.push(entry);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(results));
+
+  // Animate out
+  activeCard.classList.add(decision === 'pass' ? 'fly-right' : 'fly-left');
+
+  // Pop behind card
+  const behind = document.querySelector('.card-behind');
+  if (behind) behind.classList.add('pop-in');
+
+  activeCard.addEventListener('animationend', () => {
+    current++;
+    currentImgIdx = 0;   // reset image index for next influencer
+    updatePillCount();
+    updateProgress();
+    if (current >= influencers.length) {
+      alert("Review complete!");
+    } else {
+      renderCards();
+    }
+  }, { once: true });
+}
+
+// ── UNDO ──────────────────────────────────────────────
+function undo() {
+  if (results.length === 0) return;
+  results.pop();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(results));
+  current = Math.max(0, current - 1);
+  currentImgIdx = 0;
+  updatePillCount();
+  updateProgress();
+  renderCards();
+}
+
+// ── HELPERS ───────────────────────────────────────────
+function updateProgress() {
+  const perc = influencers.length ? (results.length / influencers.length) * 100 : 0;
+  $('progress-fill').style.width = perc + '%';
+  $('counter').textContent = `${results.length} / ${influencers.length}`;
+}
+function updatePillCount() { $('pill-count').textContent = results.length; }
+
+function openDrawer() {
+  $('results-drawer').classList.add('open');
+  $('drawer-backdrop').classList.add('open');
+  const body = $('drawer-body');
+  body.innerHTML = results.slice().reverse().map(r => `
+    <div class="drawer-item">
+      <img src="https://wsrv.nl/?url=${encodeURIComponent(r.imageUrl)}&w=100">
+      <div style="flex:1"><b>${r.name}</b></div>
+      <div class="drawer-dec ${r.decision}">${r.decision.toUpperCase()}</div>
+    </div>
+  `).join('');
+}
+function closeDrawer() {
+  $('results-drawer').classList.remove('open');
+  $('drawer-backdrop').classList.remove('open');
+}
+
+function restart() {
+  if (!confirm("Reset everything?")) return;
+  results = []; localStorage.removeItem(STORAGE_KEY);
+  current = 0; currentImgIdx = 0;
+  updatePillCount(); updateProgress(); renderCards();
+}
+
+function downloadCSV() {
+  const csv = "Name,Decision,Time\n" + results.map(r =>
+    `"${r.name}","${r.decision}","${r.timestamp}"`
+  ).join("\n");
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = window.URL.createObjectURL(blob);
+  const a    = document.createElement('a');
   a.setAttribute('hidden', ''); a.setAttribute('href', url); a.setAttribute('download', 'results.csv');
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
